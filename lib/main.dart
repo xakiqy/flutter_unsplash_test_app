@@ -3,6 +3,7 @@ import 'package:flutter_unsplash_test_app/model/unsplash_model.dart';
 import 'package:flutter_unsplash_test_app/service/unsplash_service.dart';
 import 'package:flutter_unsplash_test_app/theme/light_theme.dart';
 import 'package:flutter_unsplash_test_app/util/util.dart';
+import 'package:pagination_view/pagination_view.dart';
 
 void main() {
   runApp(MyApp());
@@ -28,87 +29,93 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  Future? unsplashModel;
+  late GlobalKey<PaginationViewState> key;
 
   @override
   void initState() {
-    unsplashModel = fetchPhotos();
+    key = GlobalKey<PaginationViewState>();
     super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     return Scaffold(
-        appBar: AppBar(
-          title: Text(widget.title!),
-        ),
-        body: FutureBuilder<UnsplashModel>(
-            future: unsplashModel as Future<UnsplashModel>?,
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return GridView.count(
-                  crossAxisCount: 2,
-                  padding: EdgeInsets.all(16.0),
-                  childAspectRatio: 8.0 / 9.0,
-                  children: _buildGridCards(context, snapshot.data!.results),
-                );
-              } else if (snapshot.hasError) return Text('${snapshot.error}');
-              return Center(child: CircularProgressIndicator());
-            }));
+      appBar: AppBar(
+        title: Text(widget.title!),
+      ),
+      body: PaginationView<Result>(
+        key: key,
+        preloadedItems: <Result>[],
+        paginationViewType: PaginationViewType.gridView,
+        itemBuilder: (BuildContext context, Result result, int index) =>
+            GridTile(
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      _createPhotoFullScreenPageRoute(result.urls!.full));
+                },
+                child: Card(
+                clipBehavior: Clip.antiAlias,
+                elevation: 4.0,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    AspectRatio(
+                      aspectRatio: 16 / 11,
+                      child: Image.network(
+                        result.urls!.small,
+                        fit: BoxFit.fitWidth,
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: <Widget>[
+                            Text(
+                              result.description,
+                              style: theme.textTheme.button,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            SizedBox(height: 4.0),
+                            Text(
+                              result.user.name,
+                              style: theme.textTheme.caption,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+      ),
+      pageFetch: fetchPhotos,
+      pullToRefresh: true,
+      onError: (dynamic error) =>
+          Center(
+            child: Text('Some error occured'),
+          ),
+      onEmpty: Center(
+        child: Text('Sorry! This is empty'),
+      ),
+      bottomLoader: Center(
+        child: CircularProgressIndicator(),
+      ),
+      initialLoader: Center(
+        child: CircularProgressIndicator(),
+      ),
+    ),);
   }
 
-  List<GestureDetector> _buildGridCards(BuildContext context,
-      List<Result?> results) {
-    final ThemeData theme = Theme.of(context);
-    if (results.isEmpty) {
-      return const <GestureDetector>[];
-    }
-    return results.map((result) {
-      return GestureDetector(
-        onTap: () {
-          Navigator.push(context ,_createPhotoFullScreenPageRoute(result!.urls!.full));
-        },
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          elevation: 4.0,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              AspectRatio(
-                aspectRatio: 16 / 11,
-                child: Image.network(
-                  result!.urls!.small,
-                  fit: BoxFit.fitWidth,
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 8.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: <Widget>[
-                      Text(
-                        result.user.username,
-                        style: theme.textTheme.button,
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 4.0),
-                      Text(
-                        result.user.name,
-                        style: theme.textTheme.caption,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }).toList();
-  }
   Route _createPhotoFullScreenPageRoute(String imageUrl) {
     return PageRouteBuilder(
       pageBuilder: (context, animation, secondaryAnimation) =>
@@ -118,7 +125,8 @@ class _MyHomePageState extends State<MyHomePage> {
         var end = Offset.zero;
         var curve = Curves.ease;
 
-        var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+        var tween =
+        Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
 
         return SlideTransition(
           position: animation.drive(tween),
